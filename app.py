@@ -2,139 +2,131 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 
-st.set_page_config(page_title="Ultimate NSE Analyzer", layout="centered")
+st.set_page_config(page_title="Smart NSE Stock Analyzer", layout="wide")
 
-st.title("📈 Ultimate NSE Trading + Investor Analyzer")
+st.title("📈 Smart NSE Stock Analyzer (Professional Version)")
+st.markdown("Analyze NSE stocks using Moving Averages & RSI Strategy")
 
-symbol_input = st.text_input("Enter NSE Stock (example: reliance, tcs, itc)")
+symbol = st.text_input("Enter NSE Stock Name (Example: RELIANCE, TCS, INFY)")
 
-if st.button("Analyze"):
+if symbol:
 
-    if not symbol_input:
-        st.warning("Please enter a stock name.")
-        st.stop()
+    # Automatically add .NS if not provided
+    symbol = symbol.upper()
+    if not symbol.endswith(".NS"):
+        symbol = symbol + ".NS"
 
-    symbol = symbol_input.strip().upper() + ".NS"
-
-    df = yf.download(symbol, period="1y", auto_adjust=True)
+    # Download data
+    df = yf.download(symbol, period="6mo")
 
     if df.empty:
-        st.error("Invalid stock or no data available.")
-        st.stop()
-
-    if isinstance(df.columns, pd.MultiIndex):
-        df.columns = df.columns.get_level_values(0)
-
-    # ================= INDICATORS =================
-    df["20DMA"] = df["Close"].rolling(20).mean()
-    df["50DMA"] = df["Close"].rolling(50).mean()
-    df["200DMA"] = df["Close"].rolling(200).mean()
-    df["AvgVol"] = df["Volume"].rolling(20).mean()
-    df["20High"] = df["Close"].rolling(20).max()
-    df["52High"] = df["Close"].rolling(252).max()
-    df["52Low"] = df["Close"].rolling(252).min()
-
-    # RSI
-    delta = df["Close"].diff()
-    gain = delta.clip(lower=0)
-    loss = -delta.clip(upper=0)
-    avg_gain = gain.rolling(14).mean()
-    avg_loss = loss.rolling(14).mean()
-    rs = avg_gain / avg_loss
-    df["RSI"] = 100 - (100 / (1 + rs))
-
-    df = df.dropna()
-
-    # SAFETY CHECK (prevents IndexError)
-    if len(df) < 2:
-        st.error("Not enough historical data to calculate indicators.")
-        st.stop()
-
-    latest = df.iloc[-1].to_dict()
-    previous = df.iloc[-2].to_dict()
-
-    # ================= SHORT TERM STRENGTH =================
-    cond1 = latest["Close"] > latest["20DMA"]
-    cond2 = latest["Close"] > latest["50DMA"]
-    cond3 = latest["Volume"] > latest["AvgVol"]
-    cond4 = latest["RSI"] > 55
-
-    strength_score = sum([cond1, cond2, cond3, cond4])
-
-    if strength_score == 4:
-        short_signal = "🟢 STRONG BUY"
-    elif strength_score >= 2:
-        short_signal = "🟡 WATCH"
+        st.error("❌ Invalid stock name or no data available on Yahoo Finance.")
     else:
-        short_signal = "🔴 AVOID"
+        if len(df) < 60:
+            st.warning("⚠ Not enough historical data to calculate full indicators (need 60+ days).")
+        else:
+            # Moving averages
+            df["20DMA"] = df["Close"].rolling(20).mean()
+            df["50DMA"] = df["Close"].rolling(50).mean()
 
-    breakout = latest["Close"] > previous["20High"]
+            # RSI Calculation
+            delta = df["Close"].diff()
+            gain = delta.clip(lower=0)
+            loss = -delta.clip(upper=0)
 
-    # ================= MARKET STAGE =================
-    if latest["Close"] > latest["200DMA"] and latest["50DMA"] > latest["200DMA"]:
-        stage = "Stage 2 (Uptrend)"
-    elif latest["Close"] < latest["200DMA"] and latest["50DMA"] < latest["200DMA"]:
-        stage = "Stage 4 (Downtrend)"
-    elif latest["Close"] > latest["200DMA"] and latest["50DMA"] < latest["200DMA"]:
-        stage = "Stage 1 (Accumulation)"
-    else:
-        stage = "Stage 3 (Distribution)"
+            avg_gain = gain.rolling(14).mean()
+            avg_loss = loss.rolling(14).mean()
 
-    accumulation = (
-        latest["Volume"] > latest["AvgVol"]
-        and latest["Close"] > latest["50DMA"]
-        and latest["RSI"] > 50
-    )
+            rs = avg_gain / avg_loss
+            df["RSI"] = 100 - (100 / (1 + rs))
 
-    overheated = latest["RSI"] > 70
+            df.dropna(inplace=True)
 
-    # ================= OUTPUT =================
+            if df.empty:
+                st.warning("⚠ Not enough clean data after indicator calculation.")
+            else:
+                latest = df.iloc[-1]
 
-    st.subheader("🔥 Short-Term View")
-    st.write(f"Strength Score: {strength_score} / 4")
-    st.write(f"Signal: {short_signal}")
+                # Strength Score Calculation
+                score = 0
 
-    if breakout:
-        st.success("🚀 20-Day Breakout Detected")
+                if latest["Close"] > latest["20DMA"]:
+                    score += 1
 
-    st.markdown("---")
+                if latest["Close"] > latest["50DMA"]:
+                    score += 1
 
-    st.subheader("📊 Long-Term Investor View (1–2 Years)")
-    st.write("Market Stage:", stage)
+                if latest["RSI"] > 50:
+                    score += 1
 
-    if stage == "Stage 2 (Uptrend)":
-        st.success("Strong long-term uptrend. Better to buy on dips near 50DMA.")
-    elif stage == "Stage 1 (Accumulation)":
-        st.info("Base formation. Institutions may be accumulating.")
-    elif stage == "Stage 3 (Distribution)":
-        st.warning("Possible topping phase. Avoid aggressive buying.")
-    else:
-        st.error("Long-term downtrend. Avoid long-term investing.")
+                if latest["RSI"] < 70:
+                    score += 1
 
-    if accumulation:
-        st.success("📦 Accumulation pattern detected")
+                # -----------------------------
+                # OUTPUT SECTION
+                # -----------------------------
 
-    if overheated:
-        st.warning("⚠ RSI above 70 → Short-term overheated")
+                st.subheader("📊 Latest Stock Analysis")
 
-    st.markdown("---")
+                col1, col2, col3, col4 = st.columns(4)
 
-    st.subheader("📈 Key Levels")
-    st.write("Current Price:", round(latest["Close"], 2))
-    st.write("20 DMA:", round(latest["20DMA"], 2))
-    st.write("50 DMA:", round(latest["50DMA"], 2))
-    st.write("200 DMA:", round(latest["200DMA"], 2))
-    st.write("52 Week High:", round(latest["52High"], 2))
-    st.write("52 Week Low:", round(latest["52Low"], 2))
-    st.write("RSI:", round(latest["RSI"], 2))
-    st.write("Volume Ratio:", round(latest["Volume"] / latest["AvgVol"], 2), "x")
+                col1.metric("Latest Close", round(latest["Close"], 2))
+                col2.metric("20 DMA", round(latest["20DMA"], 2))
+                col3.metric("50 DMA", round(latest["50DMA"], 2))
+                col4.metric("RSI", round(latest["RSI"], 2))
 
-    # ================= CHART =================
-    fig, ax = plt.subplots()
-    ax.plot(df["Close"], label="Close")
-    ax.plot(df["50DMA"], label="50 DMA")
-    ax.plot(df["200DMA"], label="200 DMA")
-    ax.legend()
-    st.pyplot(fig)
+                st.markdown("---")
+
+                st.subheader("📈 Strength Score")
+                st.write(f"Score: {score} / 4")
+
+                if score == 4:
+                    st.success("🔥 Very Strong Bullish Trend")
+                elif score == 3:
+                    st.info("👍 Positive Trend")
+                elif score == 2:
+                    st.warning("⚖ Neutral / Sideways")
+                else:
+                    st.error("🔻 Weak / Bearish Trend")
+
+                st.markdown("---")
+
+                # -----------------------------
+                # EDUCATIONAL EXPLANATION
+                # -----------------------------
+
+                st.subheader("📘 What These Indicators Mean")
+
+                st.markdown("""
+### 1️⃣ 20 Day Moving Average (Short Term Trend)
+- Shows short-term price direction.
+- If price is above 20DMA → short-term bullish.
+- If below → short-term weakness.
+
+### 2️⃣ 50 Day Moving Average (Medium Term Trend)
+- Shows medium-term trend.
+- Price above 50DMA → strong structure.
+- Price below → weakness in structure.
+
+### 3️⃣ RSI (Relative Strength Index)
+- Measures momentum (0 to 100 scale).
+- Above 70 → Overbought (possible pullback).
+- Below 30 → Oversold (possible bounce).
+- Between 50–70 → Healthy bullish momentum.
+
+### 4️⃣ Strength Score Logic
+We combine all signals:
+- Price > 20DMA ✔
+- Price > 50DMA ✔
+- RSI > 50 ✔
+- RSI < 70 ✔
+
+More ✔ = stronger stock.
+""")
+
+                st.markdown("---")
+
+                # Chart
+                st.subheader("📉 Price Chart with Moving Averages")
+                st.line_chart(df[["Close", "20DMA", "50DMA"]])
