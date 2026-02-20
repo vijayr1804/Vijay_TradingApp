@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-st.set_page_config(page_title="Ultimate Trading App", layout="centered")
+st.set_page_config(page_title="Ultimate NSE Analyzer", layout="centered")
 
 st.title("📈 Ultimate NSE Trading + Investor Analyzer")
 
@@ -21,7 +21,7 @@ if st.button("Analyze"):
     df = yf.download(symbol, period="1y", auto_adjust=True)
 
     if df.empty:
-        st.error("Invalid stock or no data.")
+        st.error("Invalid stock or no data available.")
         st.stop()
 
     if isinstance(df.columns, pd.MultiIndex):
@@ -47,10 +47,15 @@ if st.button("Analyze"):
 
     df = df.dropna()
 
+    # SAFETY CHECK (prevents IndexError)
+    if len(df) < 2:
+        st.error("Not enough historical data to calculate indicators.")
+        st.stop()
+
     latest = df.iloc[-1].to_dict()
     previous = df.iloc[-2].to_dict()
 
-    # ================= STRENGTH SCORE =================
+    # ================= SHORT TERM STRENGTH =================
     cond1 = latest["Close"] > latest["20DMA"]
     cond2 = latest["Close"] > latest["50DMA"]
     cond3 = latest["Volume"] > latest["AvgVol"]
@@ -77,7 +82,6 @@ if st.button("Analyze"):
     else:
         stage = "Stage 3 (Distribution)"
 
-    # ================= ACCUMULATION =================
     accumulation = (
         latest["Volume"] > latest["AvgVol"]
         and latest["Close"] > latest["50DMA"]
@@ -88,18 +92,12 @@ if st.button("Analyze"):
 
     # ================= OUTPUT =================
 
-    st.subheader("🔥 Short-Term Strength")
+    st.subheader("🔥 Short-Term View")
     st.write(f"Strength Score: {strength_score} / 4")
     st.write(f"Signal: {short_signal}")
 
     if breakout:
         st.success("🚀 20-Day Breakout Detected")
-
-    st.markdown("### Explanation")
-    st.write("• Above 20DMA → Short-term trend positive")
-    st.write("• Above 50DMA → Medium-term strength")
-    st.write("• High Volume → Active buyers")
-    st.write("• RSI > 55 → Positive momentum")
 
     st.markdown("---")
 
@@ -107,16 +105,16 @@ if st.button("Analyze"):
     st.write("Market Stage:", stage)
 
     if stage == "Stage 2 (Uptrend)":
-        st.success("Strong long-term uptrend. Consider buying on pullbacks.")
+        st.success("Strong long-term uptrend. Better to buy on dips near 50DMA.")
     elif stage == "Stage 1 (Accumulation)":
-        st.info("Base building stage. Early accumulation possible.")
+        st.info("Base formation. Institutions may be accumulating.")
     elif stage == "Stage 3 (Distribution)":
-        st.warning("Possible topping phase. Be cautious.")
+        st.warning("Possible topping phase. Avoid aggressive buying.")
     else:
-        st.error("Long-term downtrend. Avoid long-term entry.")
+        st.error("Long-term downtrend. Avoid long-term investing.")
 
     if accumulation:
-        st.success("📦 Accumulation signs detected (Volume + Trend alignment)")
+        st.success("📦 Accumulation pattern detected")
 
     if overheated:
         st.warning("⚠ RSI above 70 → Short-term overheated")
