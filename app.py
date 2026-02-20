@@ -4,26 +4,24 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-st.set_page_config(page_title="Trading Strength App", layout="centered")
+st.set_page_config(page_title="Investor Strength App", layout="centered")
 
-st.title("📈 NSE Stock Strength Analyzer (Learning Edition)")
+st.title("📈 NSE Investor Strength Analyzer (1–2 Year Mode)")
 
-st.write("Enter NSE stock symbol (example: reliance, tcs, itc, hdfcbank)")
-
-symbol_input = st.text_input("Stock Name")
+symbol_input = st.text_input("Enter NSE Stock (example: reliance, tcs, itc)")
 
 if st.button("Analyze"):
 
-    if symbol_input.strip() == "":
+    if not symbol_input:
         st.warning("Please enter a stock name.")
         st.stop()
 
     symbol = symbol_input.strip().upper() + ".NS"
 
-    df = yf.download(symbol, period="6mo", auto_adjust=True)
+    df = yf.download(symbol, period="1y", auto_adjust=True)
 
     if df.empty:
-        st.error("Invalid stock name or data not available.")
+        st.error("Invalid stock or no data.")
         st.stop()
 
     if isinstance(df.columns, pd.MultiIndex):
@@ -32,8 +30,10 @@ if st.button("Analyze"):
     # Indicators
     df["20DMA"] = df["Close"].rolling(20).mean()
     df["50DMA"] = df["Close"].rolling(50).mean()
+    df["200DMA"] = df["Close"].rolling(200).mean()
     df["AvgVol"] = df["Volume"].rolling(20).mean()
-    df["20High"] = df["Close"].rolling(20).max()
+    df["52High"] = df["Close"].rolling(252).max()
+    df["52Low"] = df["Close"].rolling(252).min()
 
     # RSI
     delta = df["Close"].diff()
@@ -47,70 +47,64 @@ if st.button("Analyze"):
     df = df.dropna()
 
     latest = df.iloc[-1].to_dict()
-    previous = df.iloc[-2].to_dict()
 
-    # Strength Score
-    score = 0
+    # ===== Stage Detection =====
+    stage = ""
 
-    cond1 = latest["Close"] > latest["20DMA"]
-    cond2 = latest["Close"] > latest["50DMA"]
-    cond3 = latest["Volume"] > latest["AvgVol"]
-    cond4 = latest["RSI"] > 55
-
-    score = sum([cond1, cond2, cond3, cond4])
-
-    # Signal
-    if score == 4:
-        signal = "🟢 STRONG BUY"
-    elif score >= 2:
-        signal = "🟡 WATCH"
+    if latest["Close"] > latest["200DMA"] and latest["50DMA"] > latest["200DMA"]:
+        stage = "Stage 2 (Uptrend)"
+    elif latest["Close"] < latest["200DMA"] and latest["50DMA"] < latest["200DMA"]:
+        stage = "Stage 4 (Downtrend)"
+    elif latest["Close"] > latest["200DMA"] and latest["50DMA"] < latest["200DMA"]:
+        stage = "Stage 1 (Accumulation)"
     else:
-        signal = "🔴 AVOID"
+        stage = "Stage 3 (Distribution)"
 
-    breakout = latest["Close"] > previous["20High"]
+    # ===== Accumulation Logic =====
+    accumulation = (
+        latest["Volume"] > latest["AvgVol"]
+        and latest["Close"] > latest["50DMA"]
+        and latest["RSI"] > 50
+    )
 
-    st.subheader(f"🔥 Strength Score: {score} / 4")
-    st.subheader(f"📊 Signal: {signal}")
+    # ===== Overheated Warning =====
+    overheated = latest["RSI"] > 70
 
-    # Detailed Explanation Section
-    st.markdown("## 📖 What This Means")
+    # ===== Long Term Investor Suggestion =====
+    st.subheader("📊 Market Stage")
+    st.write(stage)
 
-    if cond1:
-        st.write("✅ Price is above 20DMA → Short-term trend is positive.")
+    st.markdown("## 🧠 What This Means")
+
+    if stage == "Stage 2 (Uptrend)":
+        st.success("Strong long-term uptrend. Suitable for holding on dips.")
+    elif stage == "Stage 1 (Accumulation)":
+        st.info("Early stage base formation. Institutions may be accumulating.")
+    elif stage == "Stage 3 (Distribution)":
+        st.warning("Stock may be topping out. Caution required.")
     else:
-        st.write("❌ Price is below 20DMA → Short-term weakness.")
+        st.error("Long-term downtrend. Avoid long-term buying.")
 
-    if cond2:
-        st.write("✅ Price is above 50DMA → Medium-term trend is strong.")
+    if accumulation:
+        st.success("📦 Accumulation Signs: Volume + Trend alignment detected.")
     else:
-        st.write("❌ Price is below 50DMA → Medium-term trend weak.")
+        st.write("No strong accumulation pattern currently.")
 
-    if cond3:
-        st.write("✅ Volume is above average → Buyers are active (possible accumulation).")
-    else:
-        st.write("❌ Volume is below average → No strong buying interest.")
+    if overheated:
+        st.warning("⚠ RSI above 70 → Stock may be short-term overheated.")
 
-    if cond4:
-        st.write("✅ RSI above 55 → Momentum is positive.")
-    else:
-        st.write("❌ RSI below 55 → Momentum is weak.")
+    st.markdown("## 📈 Key Levels")
 
-    if breakout:
-        st.success("🚀 20-Day Breakout → Price making new short-term high. Institutions may be entering.")
-
-    st.markdown("## 📊 Indicator Values")
-
-    st.write("Latest Close:", round(latest["Close"], 2))
-    st.write("20 DMA:", round(latest["20DMA"], 2))
-    st.write("50 DMA:", round(latest["50DMA"], 2))
+    st.write("Latest Price:", round(latest["Close"], 2))
+    st.write("200 DMA (Long-term trend):", round(latest["200DMA"], 2))
+    st.write("52 Week High:", round(latest["52High"], 2))
+    st.write("52 Week Low:", round(latest["52Low"], 2))
     st.write("RSI:", round(latest["RSI"], 2))
-    st.write("Volume vs Avg Volume:",
-             round(latest["Volume"] / latest["AvgVol"], 2), "x")
 
     # Chart
     fig, ax = plt.subplots()
     ax.plot(df["Close"], label="Close Price")
-    ax.plot(df["20DMA"], label="20 DMA")
     ax.plot(df["50DMA"], label="50 DMA")
+    ax.plot(df["200DMA"], label="200 DMA")
     ax.legend()
     st.pyplot(fig)
