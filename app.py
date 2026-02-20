@@ -3,10 +3,9 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 
-st.set_page_config(page_title="Ultimate NSE Stock Analyzer", layout="wide")
+st.set_page_config(page_title="Professional NSE Analyzer", layout="wide")
 
-st.title("📊 Ultimate NSE Stock Analyzer")
-st.markdown("Professional Trading + Investor Guidance System")
+st.title("📊 Professional NSE Stock Analysis System")
 
 symbol_input = st.text_input("Enter NSE Stock (Example: RELIANCE, TCS, INFY)")
 
@@ -25,30 +24,23 @@ if symbol_input:
 
         df = df[["Close", "High", "Low", "Volume"]].copy()
 
-        # ===============================
         # Moving Averages
-        # ===============================
         df["20DMA"] = df["Close"].rolling(20).mean()
         df["50DMA"] = df["Close"].rolling(50).mean()
         df["200DMA"] = df["Close"].rolling(200).mean()
 
-        # ===============================
-        # RSI Calculation
-        # ===============================
+        # RSI
         delta = df["Close"].diff()
         gain = delta.clip(lower=0)
         loss = -delta.clip(upper=0)
-
         avg_gain = gain.rolling(14).mean()
         avg_loss = loss.rolling(14).mean()
-
         rs = avg_gain / avg_loss
         df["RSI"] = 100 - (100 / (1 + rs))
 
         df["AvgVol20"] = df["Volume"].rolling(20).mean()
 
         df.dropna(inplace=True)
-
         latest = df.iloc[-1]
 
         close = float(latest["Close"])
@@ -62,18 +54,14 @@ if symbol_input:
         high_52 = float(df["High"].rolling(252).max().iloc[-1])
         low_52 = float(df["Low"].rolling(252).min().iloc[-1])
 
-        # ===============================
         # Strength Score
-        # ===============================
         score = 0
         score += close > dma20
         score += close > dma50
         score += rsi > 50
         score += volume > avg_vol
 
-        # ===============================
-        # Signal Logic
-        # ===============================
+        # Signal
         if score >= 3 and close > dma50:
             signal = "BUY"
         elif score == 2:
@@ -81,28 +69,31 @@ if symbol_input:
         else:
             signal = "AVOID"
 
+        # Breakout
         breakout = close > df["High"].rolling(20).max().iloc[-2]
 
         # Market Stage
         if close > dma200 and dma50 > dma200:
-            stage = "Stage 2 - Strong Uptrend"
+            stage = "Stage 2 – Strong Uptrend"
         elif close < dma200 and dma50 < dma200:
-            stage = "Stage 4 - Downtrend"
+            stage = "Stage 4 – Downtrend"
         elif close > dma200:
-            stage = "Stage 1 - Accumulation"
+            stage = "Stage 1 – Accumulation Phase"
         else:
-            stage = "Stage 3 - Distribution"
+            stage = "Stage 3 – Distribution Phase"
 
         accumulation = volume > avg_vol and close > dma50
         overheated = rsi > 75
 
-        long_term = "Favorable for 1–2 Year Holding" if close > dma200 else "Wait for price above 200DMA for safer long-term entry"
+        long_term = (
+            "Suitable for long-term holding (price above 200DMA)."
+            if close > dma200
+            else "Wait for sustained move above 200DMA before long-term entry."
+        )
 
-        # ===============================
-        # OUTPUT SECTION
-        # ===============================
+        # ================= OUTPUT =================
 
-        st.subheader("📌 Core Technical Data")
+        st.subheader("📌 Core Technical Levels")
         st.write(f"Current Price: ₹ {round(close,2)}")
         st.write(f"20DMA: ₹ {round(dma20,2)}")
         st.write(f"50DMA: ₹ {round(dma50,2)}")
@@ -113,72 +104,47 @@ if symbol_input:
 
         st.markdown("---")
 
-        st.subheader("⚡ Trading Decision Summary")
-        st.write(f"Strength Score: {score} / 4")
-        st.write(f"Signal: {signal}")
-        st.write(f"20-Day Breakout: {'Yes' if breakout else 'No'}")
-        st.write(f"Market Stage: {stage}")
-        st.write(f"Accumulation: {'Yes' if accumulation else 'No'}")
-        st.write(f"Overheated: {'Yes' if overheated else 'No'}")
-        st.write(f"Long-Term View: {long_term}")
+        st.subheader("⚡ Trading Signals")
+        st.write(f"Strength Score (Short Term): {score}/4")
+        st.write(f"Buy / Watch / Avoid Signal: {signal}")
+        st.write(f"20-Day Breakout Detection: {'YES' if breakout else 'NO'}")
+        st.write(f"Market Stage (1–4): {stage}")
+        st.write(f"Accumulation Detection: {'YES' if accumulation else 'NO'}")
+        st.write(f"Overheated Warning: {'YES – RSI High' if overheated else 'NO'}")
+        st.write(f"1–2 Year Investor Guidance: {long_term}")
 
         st.markdown("---")
 
-        # ===============================
-        # DETAILED EXPLANATION
-        # ===============================
-
-        st.subheader("📘 Detailed Explanation of Each Result")
+        st.subheader("📘 Detailed Professional Explanation")
 
         st.markdown(f"""
-### 🔹 1. Strength Score ({score}/4)
-This measures short-term momentum strength.
-- 4/4 → Very strong momentum.
-- 3/4 → Positive bullish setup.
-- 2/4 → Mixed signals.
-- 0–1 → Weak structure.
+### 🔹 Strength Score ({score}/4)
+Measures short-term technical strength.
+- 4/4 = Strong bullish momentum.
+- 3/4 = Positive setup.
+- 2/4 = Mixed signals.
+- 0–1 = Weak structure.
 
-It combines price trend + RSI + volume confirmation.
+### 🔹 Signal: {signal}
+BUY = Trend + momentum aligned.
+WATCH = Wait for confirmation.
+AVOID = Weak technical structure.
 
----
+### 🔹 20-Day Breakout
+If YES, stock is breaking recent highs.
+Breakouts attract momentum traders.
 
-### 🔹 2. Signal: {signal}
-This gives a simplified action idea:
-- BUY → Trend, momentum and volume aligned.
-- WATCH → Some positive signals but not strong.
-- AVOID → Weak technical structure.
+### 🔹 Market Stage: {stage}
+Stage 2 = Strong trending phase.
+Stage 4 = Downtrend (avoid fresh buying).
 
----
+### 🔹 Accumulation
+High volume + rising price suggests institutional interest.
 
-### 🔹 3. 20-Day Breakout: {"Yes" if breakout else "No"}
-If Yes, price is breaking recent 20-day high.
-This often attracts traders and can trigger momentum moves.
+### 🔹 Overheated Warning
+If RSI above 75, pullback risk increases.
 
----
-
-### 🔹 4. Market Stage: {stage}
-Based on 200DMA:
-- Stage 1 → Base building phase.
-- Stage 2 → Strong uptrend (best for trend traders).
-- Stage 3 → Distribution phase.
-- Stage 4 → Downtrend (avoid fresh long entries).
-
----
-
-### 🔹 5. Accumulation: {"Yes" if accumulation else "No"}
-High volume + rising price may indicate institutional buying.
-This can be early sign of bigger moves.
-
----
-
-### 🔹 6. Overheated: {"Yes" if overheated else "No"}
-If RSI above 75, stock may be stretched.
-Pullback risk increases.
-
----
-
-### 🔹 7. Long-Term Guidance
-{long_term}
+### 🔹 Long-Term View
 200DMA acts as long-term trend filter.
 Investors prefer price above 200DMA.
 """)
